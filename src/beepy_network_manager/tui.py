@@ -1,9 +1,14 @@
 import logging
+from typing import Optional
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import Horizontal
+from textual.screen import ModalScreen
 from textual.widgets import (
+    Button,
     Footer,
+    Input,
     Label,
     ListItem,
     ListView,
@@ -12,6 +17,7 @@ from textual.widgets import (
 )
 
 from beepy_network_manager.api import (
+    ConnectionState,
     connect_to_network,
     disconnect_network,
     get_current_network,
@@ -25,6 +31,23 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+class PasswordInput(ModalScreen[Optional[str]]):
+    def compose(self) -> ComposeResult:
+        yield Static("Enter Password", id="password-title")
+        yield Input(placeholder="Password", password=True, id="password-input")
+        yield Horizontal(
+            Button("Connect", variant="primary", id="connect-button"),
+            Button("Cancel", variant="default", id="cancel-button"),
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "connect-button":
+            password = self.query_one("#password-input").value
+            self.dismiss(password)
+        else:
+            self.dismiss(None)
 
 
 class BeepyNetworkManagerApp(App):
@@ -86,28 +109,76 @@ class BeepyNetworkManagerApp(App):
         loading.styles.display = "none"
         networks_view.styles.display = "block"
 
+    async def input_password_callback(
+        self, network: str, password: Optional[str]
+    ):
+        await connect_to_network(network, password)
+        await self.update_current_network()
+
     async def connect_to_network(self, network: str) -> None:
         self.logger.info(f"Connecting to network: {network}")
-        await connect_to_network(network)
+
+        loading = self.query_one("#loading")
+        networks_view = self.query_one("#networks")
+
+        loading.styles.display = "block"
+        networks_view.styles.display = "none"
+
+        # First, try to connect without a password
+        connection_result = await connect_to_network(network)
+
+        if connection_result == ConnectionState.PASSWORD_REQUIRED:
+            # If encryption is required, show the password input modal
+            await self.push_screen(
+                PasswordInput(),
+                lambda password: self.input_password_callback(
+                    network, password
+                ),
+            )
+
+        if connection_result == ConnectionState.SUCCESS:
+            self.logger.info(f"Successfully connected to {network}")
+        elif connection_result == ConnectionState.FAILED:
+            self.logger.info(f"Failed to connect to {network}")
+            # You might want to show an error message to the user here
+
         await self.update_current_network()
+
+        loading.styles.display = "none"
+        networks_view.styles.display = "block"
 
     async def action_disconnect(self) -> None:
         self.logger.info("Disconnecting from network")
+
+        loading = self.query_one("#loading")
+        networks_view = self.query_one("#networks")
+
+        loading.styles.display = "block"
+        networks_view.styles.display = "none"
+
         await disconnect_network()
         await self.update_current_network()
+
+        loading.styles.display = "none"
+        networks_view.styles.display = "block"
 
     async def update_current_network(self) -> None:
         self.logger.info("Getting current network...")
         current_network = await get_current_network()
 
-        if current_network:
-            self.query_one("#current_network").update(
-                f"Connected to: {current_network}"
-            )
-        else:
-            self.query_one("#current_network").update(
-                "Not connected to any network"
-            )
+        try:
+            if current_network:
+                self.query_one("#current_network").update(
+                    f"Connected to: {current_network}"
+                )
+            else:
+                self.query_one("#current_network").update(
+                    "Not connected to any network"
+                )
+        except Exception:
+            # Happens when the network is looking for a password or other
+            # expected situations.
+            pass
 
     def action_quit(self) -> None:
         self.logger.info("Quitting application")

@@ -1,8 +1,16 @@
 import asyncio
 import logging
+from enum import Enum
 from typing import Dict, List, Optional
 
 WIFI_INTERFACE = None
+
+
+class ConnectionState(Enum):
+    SUCCESS = "success"
+    PASSWORD_REQUIRED = "password_required"
+    FAILED = "failed"
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +49,7 @@ async def run_nmcli(args: List[str]) -> str:
         return stdout.decode().strip()
     else:
         logger.error(f"Error running nmcli: {stderr.decode().strip()}")
-        return ""
+        return stderr.decode().strip()
 
 
 async def get_current_network() -> Optional[str]:
@@ -90,7 +98,7 @@ async def get_networks() -> List[Dict]:
 async def connect_to_network(
     ssid: str,
     password: Optional[str] = None,
-) -> bool:
+) -> ConnectionState:
     logger.info(f"Attempting to connect to: {ssid}")
 
     params = ["device", "wifi", "connect", ssid]
@@ -104,10 +112,12 @@ async def connect_to_network(
 
     if "successfully activated" in result.lower():
         logger.info(f"Connected to {ssid}")
-        return True
+        return ConnectionState.SUCCESS
+    elif "secrets were required, but not provided" in result.lower():
+        return ConnectionState.PASSWORD_REQUIRED
     else:
         logger.error(f"Failed to connect to {ssid}")
-        return False
+        return ConnectionState.FAILED
 
 
 async def disconnect_network() -> bool:

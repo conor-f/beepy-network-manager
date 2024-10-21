@@ -88,25 +88,28 @@ class BeepyNetworkManagerApp(App):
 
     async def connect_to_network(self, network: str) -> None:
         self.logger.info(f"Connecting to network: {network}")
-        connect_to_network(network)
+        await connect_to_network(network)
         await self.update_current_network()
 
     async def action_disconnect(self) -> None:
         self.logger.info("Disconnecting from network")
-        disconnect_network()
+        await disconnect_network()
         await self.update_current_network()
 
     async def update_current_network(self) -> None:
-        await sleep(1)  # Wait for 1 second
-        current_network = get_current_network()
-        if current_network:
-            self.query_one("#current_network").update(
-                f"Connected to: {current_network}"
-            )
-        else:
-            self.query_one("#current_network").update(
-                "Not connected to any network"
-            )
+        while True:
+            await sleep(5)
+            self.logger.info("Getting current network...")
+            current_network = await get_current_network()
+
+            if current_network:
+                self.query_one("#current_network").update(
+                    f"Connected to: {current_network}"
+                )
+            else:
+                self.query_one("#current_network").update(
+                    "Not connected to any network"
+                )
 
     def action_quit(self) -> None:
         self.logger.info("Quitting application")

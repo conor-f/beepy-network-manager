@@ -18,13 +18,13 @@ async def get_wifi_interface():
         for line in result.split("\n"):
             if "wifi" in line.lower():
                 WIFI_INTERFACE = line.split()[0]
+
+                return WIFI_INTERFACE
     except Exception:
         pass
 
     # Default to wlan0 if nmcli fails or no wifi interface is found
-    WIFI_INTERFACE = "wlan0"
-
-    return WIFI_INTERFACE
+    return "wlan0"
 
 
 async def run_nmcli(args: List[str]) -> str:
@@ -40,8 +40,11 @@ async def run_nmcli(args: List[str]) -> str:
 
 async def get_current_network() -> Optional[str]:
     output = await run_nmcli(["connection", "show", "--active"])
+    wifi_interface = await get_wifi_interface()
+    print(wifi_interface)
+
     for line in output.split("\n"):
-        if await get_wifi_interface() in line:
+        if wifi_interface in line:
             fields = line.split()
             return fields[0]
 

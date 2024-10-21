@@ -53,14 +53,12 @@ async def run_nmcli(args: List[str]) -> str:
 
 
 async def get_current_network() -> Optional[str]:
-    output = await run_nmcli(["connection", "show", "--active"])
-    wifi_interface = await get_wifi_interface()
-    print(wifi_interface)
+    output = await run_nmcli(["-t", "-f", "active,ssid", "dev", "wifi"])
 
     for line in output.split("\n"):
-        if wifi_interface in line:
-            fields = line.split()
-            return fields[0]
+        if "yes" in line:
+            fields = line.split(":")
+            return fields[1]
 
     return None
 

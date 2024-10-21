@@ -3,7 +3,7 @@ from typing import Optional
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Center, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
@@ -33,7 +33,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class IncorrectPasswordModal(ModalScreen):
+    def compose(self) -> ComposeResult:
+        yield Center(
+            Static("Incorrect Password", id="incorrect-password-title"),
+            Button("OK", variant="primary", id="ok-button"),
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss()
+
+
 class PasswordInput(ModalScreen[Optional[str]]):
+    BINDINGS = [("enter", "connect", "Connect")]
+
     def compose(self) -> ComposeResult:
         yield Static("Enter Password", id="password-title")
         yield Input(placeholder="Password", password=True, id="password-input")
@@ -44,10 +57,16 @@ class PasswordInput(ModalScreen[Optional[str]]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "connect-button":
-            password = self.query_one("#password-input").value
-            self.dismiss(password)
+            self.action_connect()
         else:
             self.dismiss(None)
+
+    def action_connect(self) -> None:
+        password = self.query_one("#password-input").value
+        self.dismiss(password)
+
+    def on_input_submitted(self) -> None:
+        self.action_connect()
 
 
 class BeepyNetworkManagerApp(App):
@@ -112,7 +131,14 @@ class BeepyNetworkManagerApp(App):
     async def input_password_callback(
         self, network: str, password: Optional[str]
     ):
-        await connect_to_network(network, password)
+        connection_result = await connect_to_network(network, password)
+
+        self.logger.info("B")
+        self.logger.info(connection_result)
+        if connection_result == ConnectionState.FAILED:
+            self.logger.info("C")
+            await self.push_screen(IncorrectPasswordModal())
+        self.logger.info("D")
         await self.update_current_network()
 
     async def connect_to_network(self, network: str) -> None:
@@ -140,7 +166,6 @@ class BeepyNetworkManagerApp(App):
             self.logger.info(f"Successfully connected to {network}")
         elif connection_result == ConnectionState.FAILED:
             self.logger.info(f"Failed to connect to {network}")
-            # You might want to show an error message to the user here
 
         await self.update_current_network()
 
@@ -175,7 +200,8 @@ class BeepyNetworkManagerApp(App):
                 self.query_one("#current_network").update(
                     "Not connected to any network"
                 )
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"Error updating current network: {str(e)}")
             # Happens when the network is looking for a password or other
             # expected situations.
             pass

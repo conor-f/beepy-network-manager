@@ -1,5 +1,4 @@
 import logging
-from asyncio import create_task, sleep
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -51,13 +50,14 @@ class BeepyNetworkManagerApp(App):
 
     async def on_mount(self) -> None:
         self.logger.info("BeepyNetworkManagerApp mounted")
-        create_task(self.refresh_networks())
-        create_task(self.update_current_network())
+
+        await self.refresh_networks()
+        await self.update_current_network()
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         network = str(event.item.get_child_by_type(Label).renderable)
         self.logger.info(f"Network selected: {network}")
-        create_task(self.connect_to_network(network))
+        await self.connect_to_network(network)
 
     async def refresh_networks(self) -> None:
         self.logger.info("Refreshing networks")
@@ -97,27 +97,25 @@ class BeepyNetworkManagerApp(App):
         await self.update_current_network()
 
     async def update_current_network(self) -> None:
-        while True:
-            await sleep(5)
-            self.logger.info("Getting current network...")
-            current_network = await get_current_network()
+        self.logger.info("Getting current network...")
+        current_network = await get_current_network()
 
-            if current_network:
-                self.query_one("#current_network").update(
-                    f"Connected to: {current_network}"
-                )
-            else:
-                self.query_one("#current_network").update(
-                    "Not connected to any network"
-                )
+        if current_network:
+            self.query_one("#current_network").update(
+                f"Connected to: {current_network}"
+            )
+        else:
+            self.query_one("#current_network").update(
+                "Not connected to any network"
+            )
 
     def action_quit(self) -> None:
         self.logger.info("Quitting application")
         self.exit()
 
-    def action_refresh(self) -> None:
+    async def action_refresh(self) -> None:
         self.logger.info("Refreshing networks")
-        create_task(self.refresh_networks())
+        await self.refresh_networks()
 
     def action_move_down(self) -> None:
         list_view = self.query_one("#networks")

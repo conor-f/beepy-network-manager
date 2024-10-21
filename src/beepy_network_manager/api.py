@@ -1,5 +1,5 @@
+import asyncio
 import logging
-import subprocess
 from typing import Dict, List, Optional
 
 WIFI_INTERFACE = None
@@ -28,13 +28,19 @@ async def get_wifi_interface():
 
 
 async def run_nmcli(args: List[str]) -> str:
-    try:
-        result = subprocess.run(
-            ["nmcli"] + args, capture_output=True, text=True, check=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        logger.exception(f"Error running nmcli: {e}")
+    process = await asyncio.create_subprocess_exec(
+        "nmcli",
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    stdout, stderr = await process.communicate()
+
+    if process.returncode == 0:
+        return stdout.decode().strip()
+    else:
+        logger.error(f"Error running nmcli: {stderr.decode().strip()}")
         return ""
 
 
@@ -60,23 +66,24 @@ async def get_networks() -> List[Dict]:
             "device",
             "wifi",
             "list",
+            "--rescan",
+            "yes",
         ]
     )
     networks = []
     for line in output.split("\n"):
         if line:
             ssid, signal, security = line.split(":")
-            networks.append(
-                {
-                    "ssid": ssid,
-                    "signal": signal,
-                    "security": security if security else "Open",
-                    "quality": str(
-                        int(signal) * 2
-                    ),  # Approximating quality as twice the signal strength
-                    "encrypted": security != "Open",
-                }
-            )
+            if ssid:
+                networks.append(
+                    {
+                        "ssid": ssid,
+                        "signal": signal,
+                        "security": security if security else "Open",
+                        "quality": str(int(signal) * 2),
+                        "encrypted": security != "Open",
+                    }
+                )
     return networks
 
 

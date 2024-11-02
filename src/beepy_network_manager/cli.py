@@ -1,9 +1,15 @@
 import argparse
+import asyncio
 import logging
 import sys
 import traceback
 
-from beepy_network_manager.api import get_networks, connect_to_network, disconnect_network, get_current_network
+from beepy_network_manager.api import (
+    connect_to_network,
+    disconnect_network,
+    get_current_network,
+    get_networks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +35,17 @@ def setup_logging():
     logger.addHandler(stream_handler)
 
 
-def list_networks():
+async def list_networks():
     try:
-        networks = get_networks()
+        networks = await get_networks()
         if networks:
             logger.info(f"Found {len(networks)} networks:")
             for network in networks:
+                ssid = network["ssid"].replace(
+                    "!", "\\!"
+                )  # Escape exclamation marks for display
                 logger.info(
-                    f"- {network['ssid']} - Signal: {network['signal']} - "
+                    f"- \"{ssid}\" - Signal: {network['signal']} - "
                     f"Quality: {network['quality']} - "
                     f"Encrypted: {'Yes' if network['encrypted'] else 'No'}"
                 )
@@ -46,7 +55,7 @@ def list_networks():
         logger.error(f"Error listing networks: {e}")
 
 
-def main():
+async def main():
     setup_logging()
     parser = argparse.ArgumentParser(description="Beepy Network Manager CLI")
     subparsers = parser.add_subparsers(
@@ -56,8 +65,12 @@ def main():
 
     subparsers.add_parser("list", help="List available networks")
 
-    connect_parser = subparsers.add_parser("connect", help="Connect to a network")
-    connect_parser.add_argument("ssid", help="SSID of the network to connect")
+    connect_parser = subparsers.add_parser(
+        "connect", help="Connect to a network"
+    )
+    connect_parser.add_argument(
+        "ssid", help="SSID of the network to connect", type=str, nargs="+"
+    )
     connect_parser.add_argument("--password", help="Password for the network")
 
     subparsers.add_parser("disconnect", help="Disconnect from current network")
@@ -68,13 +81,18 @@ def main():
 
     try:
         if args.command == "list":
-            list_networks()
+            await list_networks()
         elif args.command == "connect":
-            connect_to_network(args.ssid, args.password)
+            try:
+                ssid = " ".join(args.ssid)
+                await connect_to_network(ssid, args.password)
+                logger.info(f'Successfully connected to "{ssid}"')
+            except Exception as e:
+                logger.error(f'Failed to connect to "{args.ssid}": {e}')
         elif args.command == "disconnect":
-            disconnect_network()
+            await disconnect_network()
         elif args.command == "status":
-            current_network = get_current_network()
+            current_network = await get_current_network()
             if current_network:
                 logger.info(f"Currently connected to: {current_network}")
             else:
@@ -88,4 +106,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

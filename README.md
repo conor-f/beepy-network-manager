@@ -32,3 +32,7 @@ $ just run --help
 ```
 
 The `just init` rule will install a number of pre-commit hooks in addition to installing the actual project.
+
+
+## TODO
+- [ ] Provide better error messages

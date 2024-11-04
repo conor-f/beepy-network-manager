@@ -41,6 +41,7 @@ check-all:
     @just test
 
 beepy-install:
+    @sudo apt install -y python3-venv
     @python3 -m pip install pipx
     @pipx install beepy-network-manager
 

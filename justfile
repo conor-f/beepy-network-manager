@@ -42,7 +42,7 @@ check-all:
 
 beepy-install:
     @sudo apt install -y python3-venv
-    @python3 -m pip install pipx
+    @python3 -m pip install pipx --force  # For upgrades
     @pipx install beepy-network-manager
 
 beepy-remove:

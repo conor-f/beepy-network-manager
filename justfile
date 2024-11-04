@@ -39,3 +39,10 @@ check-all:
     @just type-check
     @just lint
     @just test
+
+beepy-install:
+    @python3 -m pip install pipx
+    @pipx install beepy-network-manager
+
+beepy-remove:
+    @pipx uninstall beepy-bluetooth-manager
